@@ -30,13 +30,7 @@ class BundleZipCommand(BundleCommand):
             "Defaults to the current Python executable",
             flag=False,
             value_required=True,
-        ),
-        option(
-            "clear",
-            None,
-            "Clear the existing virtual environment if it exists. ",
-            flag=True,
-        ),
+        )
     ]
 
     bundler_name = "zip"
@@ -44,5 +38,4 @@ class BundleZipCommand(BundleCommand):
     def configure_bundler(self, bundler: ZipBundler) -> None:  # type: ignore[override]
         bundler.set_path(Path(self.argument("path")))
         bundler.set_executable(self.option("python"))
-        bundler.set_remove(self.option("clear"))
         bundler.set_activated_groups(self.activated_groups)
