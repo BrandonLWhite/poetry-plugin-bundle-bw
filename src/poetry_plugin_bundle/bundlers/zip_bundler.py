@@ -11,7 +11,6 @@ if TYPE_CHECKING:
 from poetry_plugin_bundle.bundlers.bundler import Bundler
 
 # TODO:
-# - Flag for .so strip
 # - Flag for nested ZIP
 # - Config for strip patterns
 # - Unit tests!
@@ -20,6 +19,12 @@ from poetry_plugin_bundle.bundlers.bundler import Bundler
 # - Debug-level output
 class ZipBundler(Bundler):
     name = "zip"
+
+    def __init__(self) -> None:
+        self._path: Path
+        self._executable: str | None = None
+        self._activated_groups: set[str] | None = None
+        self._bundle_zip_config: dict = {}
 
     def set_path(self, path: Path) -> ZipBundler:
         self._path = path
@@ -35,6 +40,15 @@ class ZipBundler(Bundler):
         self._activated_groups = activated_groups
 
         return self
+
+    def set_zip_config(self, bundle_zip_config: dict) -> ZipBundler:
+        self._bundle_zip_config = bundle_zip_config
+
+        return self
+
+    @property
+    def strip_binaries(self) -> bool:
+        return self._bundle_zip_config.get('strip-binaries', False)
 
     def bundle(self, poetry: Poetry, io: IO) -> bool:
         from pathlib import Path
@@ -57,8 +71,10 @@ class ZipBundler(Bundler):
             # for file in project_files:
             #     print(str(file))
 
-            self._strip_shared_libs(zip_src_root_path)
-            file_paths = self._strip_unnecessary_files(zip_src_root_path)
+            if self.strip_binaries:
+                self._strip_binaries(zip_src_root_path)
+
+            file_paths = self._generate_file_paths(zip_src_root_path)
 
             with NamedTemporaryFile() as temp_requirements_zip:
                 with ZipFile(temp_requirements_zip, mode='w', compression=ZIP_DEFLATED) as requirements_zip:
@@ -92,10 +108,11 @@ class ZipBundler(Bundler):
         from poetry.core.masonry.builders.builder import Builder
 
         return {
-            root_path / file.path.relative_to(poetry.file.path.parent) for file in Builder(poetry).find_files_to_add()
+            root_path / file.path.relative_to(poetry.file.path.parent)
+            for file in Builder(poetry).find_files_to_add()
         }
 
-    def _strip_shared_libs(self, root_path: Path):
+    def _strip_binaries(self, root_path: Path):
         import subprocess
 
         # TODO : Add config flag to suppress the strip.
@@ -107,7 +124,7 @@ class ZipBundler(Bundler):
             subprocess.run(['strip', str(lib_file)])
 
     # TODO Change to generator
-    def _strip_unnecessary_files(self, root_path: Path) -> List[Path]:
+    def _generate_file_paths(self, root_path: Path) -> List[Path]:
         included_files = []
         for file in root_path.rglob('*'):
             if self._is_file_included(file):

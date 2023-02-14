@@ -39,3 +39,8 @@ class BundleZipCommand(BundleCommand):
         bundler.set_path(Path(self.argument("path")))
         bundler.set_executable(self.option("python"))
         bundler.set_activated_groups(self.activated_groups)
+
+        tool_config = self.poetry.pyproject.data.get('tool', {})
+        bundle_config = tool_config.get('poetry-bundle', {})
+        bundle_zip_config = bundle_config.get('zip', {})
+        bundler.set_zip_config(bundle_zip_config)
