@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, Iterator
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -11,7 +11,6 @@ if TYPE_CHECKING:
 from poetry_plugin_bundle.bundlers.bundler import Bundler
 
 # TODO:
-# - Flag for nested ZIP
 # - Config for strip patterns
 # - Unit tests!
 # - Improve CLI normal operational messages
@@ -50,8 +49,13 @@ class ZipBundler(Bundler):
     def strip_binaries(self) -> bool:
         return self._bundle_zip_config.get('strip-binaries', False)
 
+    @property
+    def inner_zip_dependencies(self) -> bool:
+        return self._bundle_zip_config.get('inner-zip-dependencies', False)
+
     def bundle(self, poetry: Poetry, io: IO) -> bool:
         from pathlib import Path
+        from contextlib import ExitStack
         from zipfile import ZipFile, ZIP_DEFLATED, ZIP_STORED
         from tempfile import NamedTemporaryFile, TemporaryDirectory
         from poetry.utils.env import VirtualEnv
@@ -76,20 +80,24 @@ class ZipBundler(Bundler):
 
             file_paths = self._generate_file_paths(zip_src_root_path)
 
-            with NamedTemporaryFile() as temp_requirements_zip:
-                with ZipFile(temp_requirements_zip, mode='w', compression=ZIP_DEFLATED) as requirements_zip:
-                    for file in file_paths:
-                        if file not in project_files:
-                            requirements_zip.write(str(file), arcname=file.relative_to(zip_src_root_path))
-                        # else:
-                        #     print(f'Not writing to zip: {file}')
+            with ExitStack() as exit_stack:
+                zip_output_file = exit_stack.enter_context(ZipFile(str(self._path), mode='w', compression=ZIP_DEFLATED))
 
-                with ZipFile(str(self._path), mode='w', compression=ZIP_DEFLATED) as zip_file:
-                    zip_file.write(temp_requirements_zip.name, arcname='.requirements.zip', compress_type=ZIP_STORED)
+                if self.inner_zip_dependencies:
+                    temp_requirements_zip = exit_stack.enter_context(NamedTemporaryFile())
+                    with ZipFile(temp_requirements_zip, mode='w', compression=ZIP_DEFLATED) as requirements_zip:
+                        for file in file_paths:
+                            if file not in project_files:
+                                requirements_zip.write(str(file), arcname=file.relative_to(zip_src_root_path))
+                    zip_output_file.write(temp_requirements_zip.name, arcname='.requirements.zip', compress_type=ZIP_STORED)
                     unzip_stub_path = Path(__file__).parent / 'unzip_requirements.py'
-                    zip_file.write(str(unzip_stub_path), arcname=unzip_stub_path.name)
-                    for file in project_files:
-                        zip_file.write(str(file), arcname=file.relative_to(zip_src_root_path))
+                    zip_output_file.write(str(unzip_stub_path), arcname=unzip_stub_path.name)
+                    files_to_add = project_files
+                else:
+                    files_to_add = file_paths
+
+                for file in files_to_add:
+                    zip_output_file.write(str(file), arcname=file.relative_to(zip_src_root_path))
 
         return True
 
@@ -115,21 +123,16 @@ class ZipBundler(Bundler):
     def _strip_binaries(self, root_path: Path):
         import subprocess
 
-        # TODO : Add config flag to suppress the strip.
-        # recursive iterate all .so files.
         for lib_file in root_path.rglob('*.so'):
             if not lib_file.is_file():
                 continue
             # print(f'Stripping "{lib_file}"...')
             subprocess.run(['strip', str(lib_file)])
 
-    # TODO Change to generator
-    def _generate_file_paths(self, root_path: Path) -> List[Path]:
-        included_files = []
+    def _generate_file_paths(self, root_path: Path) -> Iterator[Path]:
         for file in root_path.rglob('*'):
             if self._is_file_included(file):
-                included_files.append(file)
-        return included_files
+                yield file
 
     def _is_file_included(self, file: Path) -> bool:
         exclude = [
