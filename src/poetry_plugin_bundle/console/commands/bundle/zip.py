@@ -15,10 +15,10 @@ if TYPE_CHECKING:
 
 class BundleZipCommand(BundleCommand):
     name = "bundle zip"
-    description = "Bundle the current project into a virtual environment"
+    description = "Bundle the current project into a ZIP file artifact"
 
     arguments = [
-        argument("path", "The path to the virtual environment to bundle into.")
+        argument("path", "The output path for the generated ZIP file.")
     ]
 
     options = [
