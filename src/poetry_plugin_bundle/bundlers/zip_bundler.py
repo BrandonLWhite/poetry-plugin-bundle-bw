@@ -13,9 +13,7 @@ class ZipBundler(Bundler):
     name = "zip"
 
     DEFAULT_FILE_EXCLUSIONS = [
-        '**/__pycache__*',
-        '**/*.py[c|o]',
-        '**/tests/'
+        '**/tests/**'
     ]
 
     def __init__(self) -> None:
@@ -147,8 +145,10 @@ class ZipBundler(Bundler):
                 yield file
 
     def _is_file_included(self, file: Path) -> bool:
+        from fnmatch import fnmatchcase
         for pattern in self.file_exclusions:
-            if file.match(pattern):
+            # Path.match does not work as expected with "**"" so it is not very useful.
+            if fnmatchcase(str(file), pattern):
                 return False
 
         return True
