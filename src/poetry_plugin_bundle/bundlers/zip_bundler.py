@@ -9,9 +9,6 @@ if TYPE_CHECKING:
 
 from poetry_plugin_bundle.bundlers.bundler import Bundler
 
-# TODO:
-# - Config for strip patterns.  Strip none, add to default, replace default.
-# - Unit tests!
 class ZipBundler(Bundler):
     name = "zip"
 
