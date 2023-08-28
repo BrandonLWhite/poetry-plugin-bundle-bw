@@ -65,7 +65,7 @@ class ZipBundler(Bundler):
         from cleo.io.io import Verbosity
 
         with TemporaryDirectory() as temp_virtual_env:
-            temp_virtual_env_path = Path(temp_virtual_env)
+            temp_virtual_env_path = Path(temp_virtual_env) / '.venv'
 
             if not self._bundle_virtualenv(poetry, io, temp_virtual_env_path):
                 return False
@@ -78,6 +78,7 @@ class ZipBundler(Bundler):
             file_paths = self._generate_file_paths(zip_src_root_path)
 
             with ExitStack() as exit_stack:
+                self._path.parent.mkdir(parents=True, exist_ok=True)
                 zip_output_file = exit_stack.enter_context(ZipFile(str(self._path), mode='w', compression=ZIP_DEFLATED))
 
                 io.write_line(f'Generating ZIP artifact: {self._path}')
