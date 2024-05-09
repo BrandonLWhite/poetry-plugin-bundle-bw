@@ -9,11 +9,6 @@ if TYPE_CHECKING:
 
 from poetry_plugin_bundle.bundlers.bundler import Bundler
 
-#
-# TODO BW:
-# - Get automatic Python version resolving working.
-# - Confirm that editable installs (dev=true) libs are included in the zip.
-# - Get cross-compiling (or just restricting environment tags) working.
 class ZipBundler(Bundler):
     name = "zip"
 
@@ -73,11 +68,21 @@ class ZipBundler(Bundler):
         from poetry.utils.env import VirtualEnv
         from cleo.io.io import Verbosity
 
+        # TODO BW: SPIKE!   This is working.  Refactor and put behind a config value, which defaults to True
+        for package in poetry.locker.lock_data['package']:
+            if package.get('develop'):
+                name = package["name"]
+                print(f"Disabing editable/develop install mode for package '{name}'")
+                package['develop'] = False
+
         with TemporaryDirectory() as temp_virtual_env:
             temp_virtual_env_path = Path(temp_virtual_env) / '.venv'
 
             if not self._bundle_virtualenv(poetry, io, temp_virtual_env_path):
                 return False
+
+            # input("Press Enter to cleanup and exit...")
+            # return False
 
             zip_src_root_path = VirtualEnv(temp_virtual_env_path).site_packages.path
             project_files = self._get_project_files(poetry, zip_src_root_path)

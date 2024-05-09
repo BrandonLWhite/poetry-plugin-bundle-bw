@@ -62,24 +62,35 @@ class VenvBundler(Bundler):
         from poetry.utils.env import VirtualEnv
         from packaging.tags import Tag
 
+        # TODO BW: HACK!
         class CustomVirtualEnv(VirtualEnv):
             def get_supported_tags(self) -> list[Tag]:
                 tags = super().get_supported_tags()
                 print(tags)
                 return tags
 
+        # TODO BW: HACK!
+        class CustomEnvManager(EnvManager):
+            @property
+            def in_project_venv(self) -> Path:
+                return self._path
+
+            def use_in_project_venv(self) -> bool:
+                return True
+
+            # This seems to be working!
+            def create_venv_at_path(self, path: Path, executable: Path | None = None):
+                self._path = path
+                self.create_venv('todo-name', executable, force=True)
+
+
         warnings = []
 
-        manager = EnvManager(poetry)
+        manager = CustomEnvManager(poetry)    # TODO BW: I could use my own subclass here.
         if self._executable:
             executable, python_version = self._get_executable_info(self._executable)
         else:
             executable = None
-            # TODO BW: This isn't playing nice with version info from pyproject.toml.
-            # Is there a way to instead call poetry to determine which to use?!
-            # I'm going to have to figure out the poetry internals that make it work and assess if it is invokable
-            # from here.
-            #   -  This is handled in EnvManager.create_venv
             version_info = SystemEnv(Path(sys.prefix)).get_version_info()
             python_version = Version.parse(".".join(str(v) for v in version_info[:3]))
 
@@ -124,7 +135,9 @@ class VenvBundler(Bundler):
                 f" <b>{python_version}</b></info>",
             )
 
-            manager.build_venv(self._path, executable=executable)
+            # TODO BW: SPIKE!
+            manager.create_venv_at_path(self._path, executable=executable)
+            # manager.build_venv(self._path, executable=executable)
 
         env = CustomVirtualEnv(self._path)
 
