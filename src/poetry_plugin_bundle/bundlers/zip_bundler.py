@@ -9,6 +9,11 @@ if TYPE_CHECKING:
 
 from poetry_plugin_bundle.bundlers.bundler import Bundler
 
+#
+# TODO BW:
+# - Get automatic Python version resolving working.
+# - Confirm that editable installs (dev=true) libs are included in the zip.
+# - Get cross-compiling (or just restricting environment tags) working.
 class ZipBundler(Bundler):
     name = "zip"
 
@@ -55,6 +60,10 @@ class ZipBundler(Bundler):
         append_defaults = self._bundle_zip_config.get('append-default-file-exclusions', True)
         custom_exclusions = self._bundle_zip_config.get('file-exclusions', [])
         return self.DEFAULT_FILE_EXCLUSIONS + custom_exclusions if append_defaults else custom_exclusions
+
+    @property
+    def target_platform(self) -> str:
+        return self._bundle_zip_config.get('target-platform', '')
 
     def bundle(self, poetry: Poetry, io: IO) -> bool:
         from pathlib import Path

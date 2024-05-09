@@ -60,6 +60,13 @@ class VenvBundler(Bundler):
         from poetry.utils.env import EnvManager
         from poetry.utils.env import SystemEnv
         from poetry.utils.env import VirtualEnv
+        from packaging.tags import Tag
+
+        class CustomVirtualEnv(VirtualEnv):
+            def get_supported_tags(self) -> list[Tag]:
+                tags = super().get_supported_tags()
+                print(tags)
+                return tags
 
         warnings = []
 
@@ -68,6 +75,11 @@ class VenvBundler(Bundler):
             executable, python_version = self._get_executable_info(self._executable)
         else:
             executable = None
+            # TODO BW: This isn't playing nice with version info from pyproject.toml.
+            # Is there a way to instead call poetry to determine which to use?!
+            # I'm going to have to figure out the poetry internals that make it work and assess if it is invokable
+            # from here.
+            #   -  This is handled in EnvManager.create_venv
             version_info = SystemEnv(Path(sys.prefix)).get_version_info()
             python_version = Version.parse(".".join(str(v) for v in version_info[:3]))
 
@@ -114,7 +126,7 @@ class VenvBundler(Bundler):
 
             manager.build_venv(self._path, executable=executable)
 
-        env = VirtualEnv(self._path)
+        env = CustomVirtualEnv(self._path)
 
         self._write(io, f"{message}: <info>Installing dependencies</info>")
 
