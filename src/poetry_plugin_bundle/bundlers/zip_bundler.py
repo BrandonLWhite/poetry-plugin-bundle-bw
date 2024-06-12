@@ -85,7 +85,14 @@ class ZipBundler(Bundler):
             # return False
 
             zip_src_root_path = VirtualEnv(temp_virtual_env_path).site_packages.path
+
+            # TODO BW: I think this may not be necessary since we are installing all needed source files
+            # via poetry.  Any files that need to ship should be included in the poetry config for the package.
+            # Wait though, this will come into play through the ZIP in ZIP since the initial entrypoint file
+            # must not be in the ZIP.
+            # I think that my new loader stub concept will allow us to avoid this.
             project_files = self._get_project_files(poetry, zip_src_root_path)
+
             if self.strip_binaries:
                 self._strip_binaries(io, zip_src_root_path)
 

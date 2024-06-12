@@ -62,15 +62,23 @@ class VenvBundler(Bundler):
         from poetry.utils.env import VirtualEnv
         from packaging.tags import Tag
 
-        # TODO BW: HACK!
+        target_platforms_config = {"manylinux2014_x86_64"}
+
+        # TODO BW: HACK!  Finish this up
         class CustomVirtualEnv(VirtualEnv):
             def get_supported_tags(self) -> list[Tag]:
                 tags = super().get_supported_tags()
-                print(tags)
-                return tags
+                if not target_platforms_config:
+                    return tags
 
-        # TODO BW: HACK!
+                target_platforms = target_platforms_config | {"any"}
+                restricted_tags = [tag for tag in tags if tag.platform in target_platforms]
+                return restricted_tags
+
         class CustomEnvManager(EnvManager):
+            """
+            TODO BW DOCME
+            """
             @property
             def in_project_venv(self) -> Path:
                 return self._path
@@ -78,11 +86,9 @@ class VenvBundler(Bundler):
             def use_in_project_venv(self) -> bool:
                 return True
 
-            # This seems to be working!
             def create_venv_at_path(self, path: Path, executable: Path | None = None):
                 self._path = path
-                self.create_venv('todo-name', executable, force=True)
-
+                self.create_venv(name=None, executable=executable, force=True)
 
         warnings = []
 
