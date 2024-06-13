@@ -60,10 +60,39 @@ class VenvBundler(Bundler):
         from poetry.utils.env import EnvManager
         from poetry.utils.env import SystemEnv
         from poetry.utils.env import VirtualEnv
+        from packaging.tags import Tag
+
+        target_platforms_config = {"manylinux2014_x86_64"}
+
+        # TODO BW: HACK!  Finish this up
+        class CustomVirtualEnv(VirtualEnv):
+            def get_supported_tags(self) -> list[Tag]:
+                tags = super().get_supported_tags()
+                if not target_platforms_config:
+                    return tags
+
+                target_platforms = target_platforms_config | {"any"}
+                restricted_tags = [tag for tag in tags if tag.platform in target_platforms]
+                return restricted_tags
+
+        class CustomEnvManager(EnvManager):
+            """
+            TODO BW DOCME
+            """
+            @property
+            def in_project_venv(self) -> Path:
+                return self._path
+
+            def use_in_project_venv(self) -> bool:
+                return True
+
+            def create_venv_at_path(self, path: Path, executable: Path | None = None):
+                self._path = path
+                self.create_venv(name=None, executable=executable, force=True)
 
         warnings = []
 
-        manager = EnvManager(poetry)
+        manager = CustomEnvManager(poetry)    # TODO BW: I could use my own subclass here.
         if self._executable:
             executable, python_version = self._get_executable_info(self._executable)
         else:
@@ -112,9 +141,11 @@ class VenvBundler(Bundler):
                 f" <b>{python_version}</b></info>",
             )
 
-            manager.build_venv(self._path, executable=executable)
+            # TODO BW: SPIKE!
+            manager.create_venv_at_path(self._path, executable=executable)
+            # manager.build_venv(self._path, executable=executable)
 
-        env = VirtualEnv(self._path)
+        env = CustomVirtualEnv(self._path)
 
         self._write(io, f"{message}: <info>Installing dependencies</info>")
 
