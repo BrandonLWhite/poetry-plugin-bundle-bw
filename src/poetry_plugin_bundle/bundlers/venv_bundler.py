@@ -92,7 +92,7 @@ class VenvBundler(Bundler):
 
         warnings = []
 
-        manager = CustomEnvManager(poetry)    # TODO BW: I could use my own subclass here.
+        manager = CustomEnvManager(poetry)
         if self._executable:
             executable, python_version = self._get_executable_info(self._executable)
         else:
@@ -141,9 +141,7 @@ class VenvBundler(Bundler):
                 f" <b>{python_version}</b></info>",
             )
 
-            # TODO BW: SPIKE!
             manager.create_venv_at_path(self._path, executable=executable)
-            # manager.build_venv(self._path, executable=executable)
 
         env = CustomVirtualEnv(self._path)
 
