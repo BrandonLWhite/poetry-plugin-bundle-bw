@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from cleo.io.outputs.section_output import SectionOutput
     from poetry.poetry import Poetry
     from poetry.repositories.lockfile_repository import LockfileRepository
+    from poetry.utils.env import Env
 
 
 class VenvBundler(Bundler):
@@ -23,6 +24,7 @@ class VenvBundler(Bundler):
         self._remove: bool = False
         self._activated_groups: set[str] | None = None
         self._compile: bool = False
+        self._platform: str | None = None
 
     def set_path(self, path: Path) -> VenvBundler:
         self._path = path
@@ -49,27 +51,25 @@ class VenvBundler(Bundler):
 
         return self
 
+    def set_platform(self, platform: str | None) -> VenvBundler:
+        self._platform = platform
+
+        return self
+
     def bundle(self, poetry: Poetry, io: IO) -> bool:
         from pathlib import Path
         from tempfile import TemporaryDirectory
 
         from cleo.io.null_io import NullIO
         from poetry.core.masonry.builders.wheel import WheelBuilder
-
-        try:
-            from poetry.core.masonry.utils.module import ModuleOrPackageNotFoundError
-        except ImportError:
-            # poetry-core < 2.0
-            from poetry.core.masonry.utils.module import (  # type: ignore[attr-defined, no-redef]
-                ModuleOrPackageNotFound as ModuleOrPackageNotFoundError,
-            )
+        from poetry.core.masonry.utils.module import ModuleOrPackageNotFoundError
         from poetry.core.packages.package import Package
         from poetry.installation.installer import Installer
         from poetry.installation.operations.install import Install
         from poetry.packages.locker import Locker
-        from poetry.utils.env import Env
         from poetry.utils.env import EnvManager
-        from poetry.utils.env import InvalidCurrentPythonVersionError
+        from poetry.utils.env.python import Python
+        from poetry.utils.env.python.exceptions import InvalidCurrentPythonVersionError
 
         class CustomEnvManager(EnvManager):
             """
@@ -95,15 +95,19 @@ class VenvBundler(Bundler):
                 return True
 
             def create_venv_at_path(
-                self, path: Path, executable: Path | None, force: bool
+                self,
+                path: Path,
+                python: Python | None,
+                force: bool,
             ) -> Env:
                 self._path = path
-                return self.create_venv(name=None, executable=executable, force=force)
+                return self.create_venv(name=None, python=python, force=force)
 
         warnings = []
 
         manager = CustomEnvManager(poetry)
         executable = Path(self._executable) if self._executable else None
+        python = Python(executable) if executable else None
 
         message = self._get_message(poetry, self._path)
         if io.is_decorated() and not io.is_debug():
@@ -126,7 +130,7 @@ class VenvBundler(Bundler):
 
         try:
             env = manager.create_venv_at_path(
-                self._path, executable=executable, force=self._remove
+                self._path, python=python, force=self._remove
             )
         except InvalidCurrentPythonVersionError:
             self._write(
@@ -134,9 +138,10 @@ class VenvBundler(Bundler):
                 f"{message}: <info>Replacing existing virtual environment"
                 " due to incompatible Python version</info>",
             )
-            env = manager.create_venv_at_path(
-                self._path, executable=executable, force=True
-            )
+            env = manager.create_venv_at_path(self._path, python=python, force=True)
+
+        if self._platform:
+            self._constrain_env_platform(env, self._platform)
 
         self._write(io, f"{message}: <info>Installing dependencies</info>")
 
@@ -147,12 +152,7 @@ class VenvBundler(Bundler):
                     package.develop = False
                 return repo
 
-        try:
-            locker_data = poetry.locker._pyproject_data
-        except AttributeError:
-            # poetry < 2.0
-            locker_data = poetry.locker._local_config  # type: ignore[attr-defined]
-        custom_locker = CustomLocker(poetry.locker.lock, locker_data)
+        custom_locker = CustomLocker(poetry.locker.lock, poetry.locker._pyproject_data)
 
         installer = Installer(
             NullIO() if not io.is_debug() else io,
@@ -248,3 +248,12 @@ class VenvBundler(Bundler):
             return
 
         io.overwrite(message)
+
+    def _constrain_env_platform(self, env: Env, platform: str) -> None:
+        """
+        Set the argument environment's supported tags
+        based on the configured platform override.
+        """
+        from poetry_plugin_bundle.utils.platforms import create_supported_tags
+
+        env._supported_tags = create_supported_tags(platform, env)
