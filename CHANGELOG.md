@@ -1,6 +1,13 @@
 # Change Log
 
 
+## [Unreleased]
+
+### Fixed
+
+- Expand editable (`develop = true`) path dependencies into full installs again under Poetry >= 2.3.0, where the new `installer.re-resolve = false` default made the installer bypass the plugin's develop-mode override ([python-poetry/poetry-plugin-bundle#159](https://github.com/python-poetry/poetry-plugin-bundle/issues/159)).
+
+
 ## [1.7.0] - 2025-03-10
 
 ### Added
